@@ -7,6 +7,7 @@ import React, {
   useCallback,
 } from "react";
 
+export const GLOBAL_CSS = `...`;
 // ─────────────────────────────────────────────────────────────
 // TYPES
 // ─────────────────────────────────────────────────────────────
@@ -242,3 +243,11 @@ function CritToast({ toasts, onDismiss }: { toasts: CritToastItem[]; onDismiss: 
               <span style={{ color: "#3f3f46", fontSize: 8, fontWeight: 900, fontFamily: "monospace" }}>{t.ts}</span>
             </div>
             <p style={{ color: "#ffe4e6", fontSize: 10, lineHeight: 1.5, wordBreak: "break-word" }}>{t.text}</p>
+
+            export default function App() {
+  return (
+    <WorkstationProvider>
+      {/* your existing UI */}
+    </WorkstationProvider>
+  );
+}
