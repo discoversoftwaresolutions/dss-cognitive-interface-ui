@@ -1,14 +1,643 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>DSS Cognitive Interface</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cora Mission Control Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        neonGreen: '#00FF66',
+                        neonOrange: '#FF6600',
+                        darkBg: '#090A0F',
+                        cardBg: '#12151E',
+                        borderCol: '#1E2330'
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #090A0F; color: #E2E8F0; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #090A0F; }
+        ::-webkit-scrollbar-thumb { background: #1E2330; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #00FF66; }
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 15px rgba(0, 255, 102, 0.2); }
+            50% { box-shadow: 0 0 25px rgba(0, 255, 102, 0.4); }
+        }
+        .glow-box { animation: pulseGlow 4s infinite ease-in-out; }
+        #audioVisualizerCanvas { width: 100%; height: 160px; display: block; }
+    </style>
+</head>
+<body class="h-screen flex overflow-hidden bg-darkBg text-slate-100">
 
-    <style id="global-styles"></style>
-  </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+    <!-- Sidebar -->
+    <aside id="sidebar" class="w-64 bg-cardBg border-r border-borderCol flex flex-col transition-all duration-300 z-20 flex-shrink-0">
+        <div class="p-4 border-b border-borderCol flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-neonGreen to-neonOrange flex items-center justify-center text-darkBg font-bold text-lg shadow-lg shadow-neonGreen/20">
+                    <i class="fa-solid fa-atom"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-sm tracking-wide text-slate-100">CORA CONTROL</h1>
+                    <p class="text-[10px] font-mono text-neonGreen">ONLINE // SECURE</p>
+                </div>
+            </div>
+            <button id="toggleSidebar" class="text-slate-400 hover:text-neonGreen transition-colors md:hidden">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div class="p-3">
+            <button onclick="startNewChat()" class="w-full bg-gradient-to-r from-neonGreen/10 to-neonOrange/10 border border-neonGreen/30 hover:border-neonGreen text-slate-200 hover:text-neonGreen py-2.5 px-4 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition-all shadow-sm">
+                <i class="fa-solid fa-plus text-neonGreen"></i>
+                <span>New Command Session</span>
+            </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto px-3 py-2 space-y-1">
+            <div class="text-[10px] font-mono text-slate-500 uppercase px-3 py-1">Recent Sessions</div>
+            <div id="chatHistoryList" class="space-y-1"></div>
+        </div>
+
+        <div class="p-3 border-t border-borderCol space-y-1">
+            <div class="text-[10px] font-mono text-slate-500 uppercase px-3 py-1">Mission Modules</div>
+            <button onclick="switchTab('chat')" class="tab-btn w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-300 hover:bg-slate-800/60 hover:text-neonGreen transition-colors active" data-tab="chat">
+                <i class="fa-solid fa-comments w-4 text-neonGreen"></i>
+                <span>Command Hub</span>
+            </button>
+            <button onclick="switchTab('telemetry')" class="tab-btn w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-300 hover:bg-slate-800/60 hover:text-neonGreen transition-colors" data-tab="telemetry">
+                <i class="fa-solid fa-chart-line w-4 text-neonOrange"></i>
+                <span>Telemetry & Core</span>
+            </button>
+            <button onclick="switchTab('diagnostics')" class="tab-btn w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-300 hover:bg-slate-800/60 hover:text-neonGreen transition-colors" data-tab="diagnostics">
+                <i class="fa-solid fa-microchip w-4 text-neonGreen"></i>
+                <span>System Diagnostics</span>
+            </button>
+            <button onclick="switchTab('logs')" class="tab-btn w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-300 hover:bg-slate-800/60 hover:text-neonGreen transition-colors" data-tab="logs">
+                <i class="fa-solid fa-terminal w-4 text-neonOrange"></i>
+                <span>Event Log Stream</span>
+            </button>
+        </div>
+
+        <div class="p-3 border-t border-borderCol bg-cardBg/50 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <div class="w-2 h-2 rounded-full bg-neonGreen animate-pulse"></div>
+                <span class="text-xs font-mono text-slate-400">Node: ALPHA-01</span>
+            </div>
+            <button onclick="triggerSystemReset()" title="System Reboot" class="text-slate-400 hover:text-neonOrange transition-colors p-1.5 rounded-lg hover:bg-slate-800">
+                <i class="fa-solid fa-power-off text-xs"></i>
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 flex flex-col h-screen overflow-hidden relative bg-darkBg">
+        
+        <header class="h-14 border-b border-borderCol bg-cardBg/80 backdrop-blur-md px-4 flex items-center justify-between z-10">
+            <div class="flex items-center space-x-3">
+                <button id="mobileSidebarToggle" class="text-slate-400 hover:text-neonGreen md:hidden p-2">
+                    <i class="fa-solid fa-bars text-lg"></i>
+                </button>
+                <div class="flex items-center space-x-2">
+                    <span id="currentViewTitle" class="font-semibold text-sm text-slate-200">Command Hub</span>
+                    <span class="text-xs font-mono px-2 py-0.5 rounded bg-neonGreen/10 text-neonGreen border border-neonGreen/20">LIVE</span>
+                </div>
+            </div>
+            
+            <div class="flex items-center space-x-4">
+                <div class="hidden sm:flex items-center space-x-3 text-xs font-mono text-slate-400 bg-darkBg px-3 py-1.5 rounded-lg border border-borderCol">
+                    <span>CPU: <strong id="cpuLoad" class="text-neonGreen">14.2%</strong></span>
+                    <span class="text-slate-600">|</span>
+                    <span>MEM: <strong id="memLoad" class="text-neonOrange">42.8%</strong></span>
+                </div>
+                <button onclick="toggleVoiceOutput()" id="voiceToggleBtn" class="px-3 py-1.5 rounded-lg bg-cardBg border border-borderCol hover:border-neonGreen text-xs font-mono text-slate-300 flex items-center space-x-2 transition-all">
+                    <i class="fa-solid fa-volume-high text-neonGreen"></i>
+                    <span>Voice: ON</span>
+                </button>
+            </div>
+        </header>
+
+        <div class="flex-1 overflow-hidden relative flex flex-col">
+
+            <!-- TAB 1: Chat / Command Hub -->
+            <div id="tab-chat" class="tab-content flex-1 flex flex-col h-full overflow-hidden">
+                
+                <!-- Cinematic 3D Silhouette Voice Visualizer (JARVIS Style) -->
+                <div class="bg-darkBg/90 border-b border-borderCol relative flex flex-col items-center justify-center p-2">
+                    <div class="absolute top-2 left-4 text-[10px] font-mono text-neonGreen tracking-widest uppercase flex items-center space-x-2">
+                        <span class="w-1.5 h-1.5 rounded-full bg-neonGreen animate-ping"></span>
+                        <span>CORA NEURAL ACOUSTIC SILHOUETTE</span>
+                    </div>
+                    <canvas id="audioVisualizerCanvas"></canvas>
+                    <div id="speechStatus" class="text-[11px] font-mono text-slate-400 mt-1">Status: Standby (Ready for command transmission)</div>
+                </div>
+
+                <!-- Chat Messages Scroll Area -->
+                <div id="chatMessages" class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 max-w-4xl mx-auto w-full">
+                    <div class="text-center py-6 space-y-3">
+                        <div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-neonGreen/20 to-neonOrange/20 border border-neonGreen/30 flex items-center justify-center mx-auto glow-box">
+                            <i class="fa-solid fa-atom text-xl text-neonGreen"></i>
+                        </div>
+                        <h2 class="text-xl font-bold text-slate-100 tracking-tight">CORA Mission Control Ready</h2>
+                        <p class="text-xs text-slate-400 max-w-md mx-auto">Query telemetry, run simulations, check spacecraft diagnostics, or issue system directive prompts.</p>
+                        
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 max-w-lg mx-auto">
+                            <button onclick="sendPresetPrompt('Run complete spacecraft diagnostic check.')" class="text-left p-2.5 rounded-xl bg-cardBg border border-borderCol hover:border-neonGreen/50 text-xs text-slate-300 hover:text-neonGreen transition-all flex items-center justify-between group">
+                                <span>Run diagnostic check</span>
+                                <i class="fa-solid fa-arrow-right text-[10px] text-slate-500 group-hover:text-neonGreen transition-colors"></i>
+                            </button>
+                            <button onclick="sendPresetPrompt('Display current life support telemetry status.')" class="text-left p-2.5 rounded-xl bg-cardBg border border-borderCol hover:border-neonGreen/50 text-xs text-slate-300 hover:text-neonGreen transition-all flex items-center justify-between group">
+                                <span>Life support status</span>
+                                <i class="fa-solid fa-arrow-right text-[10px] text-slate-500 group-hover:text-neonGreen transition-colors"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Prompt Input Bar -->
+                <div class="p-4 bg-darkBg border-t border-borderCol">
+                    <div class="max-w-4xl mx-auto">
+                        <form id="chatForm" onsubmit="handleChatSubmit(event)" class="relative bg-cardBg border border-borderCol rounded-2xl p-2 focus-within:border-neonGreen transition-all shadow-lg">
+                            <div class="flex items-center px-2 py-1 space-x-2">
+                                <button type="button" onclick="triggerAttachment()" class="text-slate-400 hover:text-neonGreen p-2 rounded-lg hover:bg-slate-800 transition-colors" title="Attach telemetry log">
+                                    <i class="fa-solid fa-paperclip text-sm"></i>
+                                </button>
+                                <input type="text" id="userInput" placeholder="Ask Cora or enter mission command..." class="flex-1 bg-transparent border-none text-sm text-slate-100 placeholder-slate-500 focus:outline-none px-2 font-mono">
+                                <button type="submit" id="sendBtn" class="bg-gradient-to-r from-neonGreen to-emerald-500 text-darkBg hover:opacity-90 font-bold px-4 py-2 rounded-xl text-xs flex items-center space-x-1.5 transition-all shadow-md shadow-neonGreen/20">
+                                    <span>Execute</span>
+                                    <i class="fa-solid fa-paper-plane text-[10px]"></i>
+                                </button>
+                            </div>
+                        </form>
+                        <div class="flex items-center justify-between px-2 pt-2 text-[10px] font-mono text-slate-500">
+                            <span>CORA Core v4.8 // Secure Neural Net</span>
+                            <span>Encrypted End-to-End</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: Telemetry & Core -->
+            <div id="tab-telemetry" class="tab-content flex-1 overflow-y-auto p-4 sm:p-6 hidden space-y-6">
+                <div class="max-w-6xl mx-auto space-y-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="text-xl font-bold text-slate-100">Telemetry & Core Systems</h2>
+                            <p class="text-xs text-slate-400 font-mono">Real-time sensor feeds and spacecraft parameters</p>
+                        </div>
+                        <button onclick="refreshTelemetry()" class="bg-cardBg border border-borderCol hover:border-neonGreen px-3 py-1.5 rounded-xl text-xs font-mono text-slate-300 flex items-center space-x-2 transition-all">
+                            <i class="fa-solid fa-rotate text-neonGreen"></i>
+                            <span>Sync Stream</span>
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="bg-cardBg border border-borderCol p-4 rounded-2xl relative overflow-hidden">
+                            <div class="flex items-center justify-between text-slate-400 mb-2">
+                                <span class="text-xs font-mono">REACTOR CORE</span>
+                                <i class="fa-solid fa-radiation text-neonGreen"></i>
+                            </div>
+                            <div class="text-2xl font-bold font-mono text-slate-100" id="telReactor">98.4 <span class="text-xs text-neonGreen">%</span></div>
+                        </div>
+                        <div class="bg-cardBg border border-borderCol p-4 rounded-2xl relative overflow-hidden">
+                            <div class="flex items-center justify-between text-slate-400 mb-2">
+                                <span class="text-xs font-mono">CABIN PRESSURE</span>
+                                <i class="fa-solid fa-gauge-high text-neonOrange"></i>
+                            </div>
+                            <div class="text-2xl font-bold font-mono text-slate-100" id="telPressure">1.02 <span class="text-xs text-neonOrange">BAR</span></div>
+                        </div>
+                        <div class="bg-cardBg border border-borderCol p-4 rounded-2xl relative overflow-hidden">
+                            <div class="flex items-center justify-between text-slate-400 mb-2">
+                                <span class="text-xs font-mono">VELOCITY (ORBITAL)</span>
+                                <i class="fa-solid fa-gauge text-neonGreen"></i>
+                            </div>
+                            <div class="text-2xl font-bold font-mono text-slate-100">7.68 <span class="text-xs text-neonGreen">KM/S</span></div>
+                        </div>
+                        <div class="bg-cardBg border border-borderCol p-4 rounded-2xl relative overflow-hidden">
+                            <div class="flex items-center justify-between text-slate-400 mb-2">
+                                <span class="text-xs font-mono">THERMAL SHIELD</span>
+                                <i class="fa-solid fa-fire-flame-curved text-neonOrange"></i>
+                            </div>
+                            <div class="text-2xl font-bold font-mono text-slate-100">312.4 <span class="text-xs text-neonOrange">°C</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: System Diagnostics -->
+            <div id="tab-diagnostics" class="tab-content flex-1 overflow-y-auto p-4 sm:p-6 hidden space-y-6">
+                <div class="max-w-6xl mx-auto space-y-6">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-100">System Diagnostics</h2>
+                        <p class="text-xs text-slate-400 font-mono">Hardware health and subsystem integrity matrix</p>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="diagnosticsGrid"></div>
+                </div>
+            </div>
+
+            <!-- TAB 4: Event Log Stream -->
+            <div id="tab-logs" class="tab-content flex-1 overflow-y-auto p-4 sm:p-6 hidden flex flex-col">
+                <div class="max-w-6xl mx-auto w-full space-y-4 flex-1 flex flex-col">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="text-xl font-bold text-slate-100">Event Log Stream</h2>
+                            <p class="text-xs text-slate-400 font-mono">Kernel & subsystem message buffer</p>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button onclick="clearLogs()" class="bg-cardBg border border-borderCol hover:border-neonOrange px-3 py-1.5 rounded-xl text-xs font-mono text-slate-300 transition-all">Clear Buffer</button>
+                            <button onclick="addRandomLog()" class="bg-neonGreen/10 border border-neonGreen/30 hover:border-neonGreen px-3 py-1.5 rounded-xl text-xs font-mono text-neonGreen transition-all">Inject Event</button>
+                        </div>
+                    </div>
+                    <div class="bg-cardBg border border-borderCol rounded-2xl p-4 flex-1 font-mono text-xs overflow-y-auto space-y-2 max-h-[600px]" id="systemLogConsole"></div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Application Script -->
+    <script>
+        let currentSessionId = 'session-1';
+        let chatSessions = [
+            { id: 'session-1', title: 'Mission Initialization', timestamp: 'Just now' }
+        ];
+        
+        let chatMessagesData = {
+            'session-1': [
+                { role: 'assistant', text: 'CORA Control online. All telemetry links active. What instructions do you have for the crew or mission control today?' }
+            ]
+        };
+
+        let voiceEnabled = true;
+        let isSpeaking = false;
+        let speechIntensity = 0.1;
+
+        const diagnosticsData = [
+            { name: 'Navigation Array (NAV-1)', status: 'OPERATIONAL', load: '12%', color: 'neonGreen' },
+            { name: 'Long-Range Comms (SAT-COM)', status: 'OPERATIONAL', load: '44%', color: 'neonGreen' },
+            { name: 'Life Support Scrubbers', status: 'NOMINAL', load: '78%', color: 'neonGreen' },
+            { name: 'Primary Thruster Gimbals', status: 'STANDBY', load: '2%', color: 'neonOrange' },
+            { name: 'Shield Generator Array', status: 'ACTIVE', load: '65%', color: 'neonGreen' },
+            { name: 'Auxiliary Power Core B', status: 'STANDBY', load: '0%', color: 'neonOrange' }
+        ];
+
+        let systemLogs = [
+            { time: '04:45:10', type: 'INFO', text: 'System boot sequence completed successfully.' },
+            { time: '04:46:22', type: 'SUCCESS', text: 'Telemetry handshake verified with Ground Station 4.' },
+            { time: '04:48:05', type: 'WARN', text: 'Thermal fluctuation noted in Solar Array 2.' },
+            { time: '04:49:12', type: 'INFO', text: 'CORA neural network model loaded v4.8.' }
+        ];
+
+        // Three.js Silhouette Visualizer Setup
+        let scene, camera, renderer, coreRing, outerRing, particleMesh;
+
+        window.onload = function() {
+            renderChatHistory();
+            renderCurrentChatMessages();
+            renderDiagnostics();
+            renderLogs();
+            initVisualizer();
+
+            document.getElementById('toggleSidebar').addEventListener('click', toggleSidebarMobile);
+            document.getElementById('mobileSidebarToggle').addEventListener('click', toggleSidebarMobile);
+
+            setInterval(updateTelemetryTicker, 3000);
+            
+            // Speak initial greeting if voice enabled
+            speakText(chatMessagesData['session-1'][0].text);
+        };
+
+        function initVisualizer() {
+            const canvas = document.getElementById('audioVisualizerCanvas');
+            const container = canvas.parentElement;
+            
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / 160, 0.1, 1000);
+            camera.position.z = 6;
+
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
+            renderer.setSize(container.clientWidth, 160);
+            renderer.setPixelRatio(window.devicePixelRatio);
+
+            // Create 3D Holographic Silhouette Rings (JARVIS style)
+            const ringGeo = new THREE.TorusGeometry(1.5, 0.04, 16, 100);
+            const ringMat = new THREE.MeshBasicMaterial({ color: 0x00FF66, wireframe: true });
+            coreRing = new THREE.Mesh(ringGeo, ringMat);
+            scene.add(coreRing);
+
+            const outerGeo = new THREE.TorusGeometry(2.0, 0.02, 16, 80);
+            const outerMat = new THREE.MeshBasicMaterial({ color: 0xFF6600, wireframe: true });
+            outerRing = new THREE.Mesh(outerGeo, outerMat);
+            scene.add(outerRing);
+
+            // Center Orb
+            const orbGeo = new THREE.SphereGeometry(0.7, 32, 32);
+            const orbMat = new THREE.MeshBasicMaterial({ color: 0x00FF66, wireframe: true, transparent: true, opacity: 0.7 });
+            const orb = new THREE.Mesh(orbGeo, orbMat);
+            scene.add(orb);
+
+            // Animation Loop
+            let clock = new THREE.Clock();
+            function animate() {
+                requestAnimationFrame(animate);
+                const elapsedTime = clock.getElapsedTime();
+
+                // Speech reactivity scaling
+                const targetIntensity = isSpeaking ? (0.8 + Math.random() * 0.7) : 0.2;
+                speechIntensity += (targetIntensity - speechIntensity) * 0.1;
+
+                coreRing.rotation.x = elapsedTime * 0.8;
+                coreRing.rotation.y = elapsedTime * 1.2;
+                coreRing.scale.set(1 + speechIntensity * 0.3, 1 + speechIntensity * 0.3, 1 + speechIntensity * 0.3);
+
+                outerRing.rotation.x = -elapsedTime * 0.6;
+                outerRing.rotation.z = elapsedTime * 0.9;
+                outerRing.scale.set(1 + speechIntensity * 0.2, 1 + speechIntensity * 0.2, 1 + speechIntensity * 0.2);
+
+                orb.rotation.y = elapsedTime * 0.5;
+
+                renderer.render(scene, camera);
+            }
+            animate();
+
+            window.addEventListener('resize', () => {
+                camera.aspect = container.clientWidth / 160;
+                camera.updateProjectionMatrix();
+                renderer.setSize(container.clientWidth, 160);
+            });
+        }
+
+        function speakText(text) {
+            if(!voiceEnabled || !('speechSynthesis' in window)) return;
+            window.speechSynthesis.cancel();
+            
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 1.05;
+            utterance.pitch = 0.95;
+
+            utterance.onstart = () => {
+                isSpeaking = true;
+                document.getElementById('speechStatus').textContent = "Status: Transmitting speech telemetry (Active)";
+                document.getElementById('speechStatus').classList.add('text-neonGreen');
+            };
+
+            utterance.onend = () => {
+                isSpeaking = false;
+                document.getElementById('speechStatus').textContent = "Status: Standby (Ready for command transmission)";
+                document.getElementById('speechStatus').classList.remove('text-neonGreen');
+            };
+
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function toggleVoiceOutput() {
+            voiceEnabled = !voiceEnabled;
+            const btn = document.getElementById('voiceToggleBtn');
+            if(voiceEnabled) {
+                btn.innerHTML = `<i class="fa-solid fa-volume-high text-neonGreen"></i><span>Voice: ON</span>`;
+                addSystemLog('INFO', 'Voice synthesis output enabled.');
+            } else {
+                window.speechSynthesis.cancel();
+                isSpeaking = false;
+                btn.innerHTML = `<i class="fa-solid fa-volume-xmark text-slate-500"></i><span>Voice: OFF</span>`;
+                addSystemLog('INFO', 'Voice synthesis output muted.');
+            }
+        }
+
+        function toggleSidebarMobile() {
+            document.getElementById('sidebar').classList.toggle('-translate-x-full');
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById('tab-' + tabId).classList.remove('hidden');
+
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('bg-slate-800/80', 'text-neonGreen');
+                if(btn.getAttribute('data-tab') === tabId) {
+                    btn.classList.add('bg-slate-800/80', 'text-neonGreen');
+                }
+            });
+
+            const titles = {
+                'chat': 'Command Hub',
+                'telemetry': 'Telemetry & Core',
+                'diagnostics': 'System Diagnostics',
+                'logs': 'Event Log Stream'
+            };
+            document.getElementById('currentViewTitle').textContent = titles[tabId] || 'Dashboard';
+        }
+
+        function renderChatHistory() {
+            const listEl = document.getElementById('chatHistoryList');
+            listEl.innerHTML = '';
+            chatSessions.forEach(session => {
+                const active = session.id === currentSessionId;
+                const div = document.createElement('div');
+                div.className = `px-3 py-2 rounded-xl text-xs cursor-pointer flex items-center justify-between transition-colors ${active ? 'bg-slate-800 text-neonGreen font-medium border border-neonGreen/20' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'}`;
+                div.innerHTML = `
+                    <div class="flex items-center space-x-2 truncate">
+                        <i class="fa-solid fa-message text-[10px]"></i>
+                        <span class="truncate">${session.title}</span>
+                    </div>
+                    <span class="text-[9px] text-slate-500 font-mono">${session.timestamp}</span>
+                `;
+                div.onclick = () => selectSession(session.id);
+                listEl.appendChild(div);
+            });
+        }
+
+        function startNewChat() {
+            const newId = 'session-' + (chatSessions.length + 1);
+            chatSessions.unshift({ id: newId, title: 'New Command Session', timestamp: 'Just now' });
+            chatMessagesData[newId] = [
+                { role: 'assistant', text: 'New secure session initialized. Ready for command input.' }
+            ];
+            currentSessionId = newId;
+            renderChatHistory();
+            renderCurrentChatMessages();
+            speakText('New secure session initialized.');
+        }
+
+        function selectSession(id) {
+            currentSessionId = id;
+            renderChatHistory();
+            renderCurrentChatMessages();
+        }
+
+        function renderCurrentChatMessages() {
+            const container = document.getElementById('chatMessages');
+            const messages = chatMessagesData[currentSessionId] || [];
+            
+            let html = '';
+            messages.forEach(msg => {
+                if (msg.role === 'user') {
+                    html += `
+                        <div class="flex items-start justify-end space-x-3">
+                            <div class="bg-slate-800 border border-slate-700 text-slate-100 rounded-2xl rounded-tr-sm p-4 max-w-xl text-xs font-mono leading-relaxed shadow-sm">
+                                ${escapeHtml(msg.text)}
+                            </div>
+                            <div class="w-8 h-8 rounded-lg bg-neonGreen/20 border border-neonGreen/40 flex items-center justify-center text-neonGreen flex-shrink-0">
+                                <i class="fa-solid fa-user text-xs"></i>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    html += `
+                        <div class="flex items-start space-x-3">
+                            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-neonGreen to-neonOrange flex items-center justify-center text-darkBg flex-shrink-0 font-bold shadow-md">
+                                <i class="fa-solid fa-atom text-xs"></i>
+                            </div>
+                            <div class="bg-cardBg border border-borderCol text-slate-200 rounded-2xl rounded-tl-sm p-4 max-w-xl text-xs font-mono leading-relaxed shadow-md">
+                                ${escapeHtml(msg.text)}
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+            container.innerHTML = html;
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function handleChatSubmit(e) {
+            e.preventDefault();
+            const inputEl = document.getElementById('userInput');
+            const query = inputEl.value.trim();
+            if(!query) return;
+
+            if(!chatMessagesData[currentSessionId]) chatMessagesData[currentSessionId] = [];
+
+            chatMessagesData[currentSessionId].push({ role: 'user', text: query });
+            
+            const currentSes = chatSessions.find(s => s.id === currentSessionId);
+            if(currentSes && currentSes.title === 'New Command Session') {
+                currentSes.title = query.length > 24 ? query.substring(0, 24) + '...' : query;
+                renderChatHistory();
+            }
+
+            inputEl.value = '';
+            renderCurrentChatMessages();
+
+            setTimeout(() => {
+                const response = generateSimulatedResponse(query);
+                chatMessagesData[currentSessionId].push({ role: 'assistant', text: response });
+                renderCurrentChatMessages();
+                speakText(response);
+                addSystemLog('INFO', `Executed query: "${query.substring(0, 25)}..."`);
+            }, 600);
+        }
+
+        function sendPresetPrompt(promptText) {
+            document.getElementById('userInput').value = promptText;
+            document.getElementById('chatForm').dispatchEvent(new Event('submit'));
+        }
+
+        function generateSimulatedResponse(query) {
+            const q = query.toLowerCase();
+            if(q.includes('diagnostic') || q.includes('check')) {
+                return 'DIAGNOSTIC REPORT: All sub-systems running within nominal parameters. Navigation array NAV-1 locked at 99.8% precision. Life support telemetry stable.';
+            } else if(q.includes('life support') || q.includes('oxygen')) {
+                return 'LIFE SUPPORT STATUS: Cabin pressure at 1.02 BAR. O2 concentration at 21.4%. CO2 scrubbers operating at 42% capacity. No anomalies detected.';
+            } else if(q.includes('trajectory') || q.includes('burn') || q.includes('orbit')) {
+                return 'ORBITAL SIMULATION: Trajectory correction burn calculated. Delta-V required: +12.4 m/s. Thruster gimbals ready for automated ignition sequence upon authorization.';
+            } else {
+                return `Command "${query}" received and logged into neural buffer. Subsystems are operating on stable parameters. Ready for next directive.`;
+            }
+        }
+
+        function renderDiagnostics() {
+            const grid = document.getElementById('diagnosticsGrid');
+            grid.innerHTML = '';
+            diagnosticsData.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'bg-cardBg border border-borderCol p-4 rounded-2xl space-y-3';
+                card.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-mono font-bold text-slate-200">${item.name}</span>
+                        <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-${item.color}/10 text-${item.color} border border-${item.color}/20">${item.status}</span>
+                    </div>
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-[10px] font-mono text-slate-400">
+                            <span>Subsystem Load</span>
+                            <span>${item.load}</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                            <div class="bg-${item.color} h-full rounded-full" style="width: ${item.load};"></div>
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function renderLogs() {
+            const consoleEl = document.getElementById('systemLogConsole');
+            consoleEl.innerHTML = '';
+            systemLogs.forEach(log => {
+                const colorClass = log.type === 'SUCCESS' ? 'text-neonGreen' : log.type === 'WARN' ? 'text-neonOrange' : 'text-slate-400';
+                const div = document.createElement('div');
+                div.className = 'flex items-start space-x-3 font-mono';
+                div.innerHTML = `
+                    <span class="text-slate-500">[${log.time}]</span>
+                    <span class="px-1.5 rounded text-[10px] font-bold bg-slate-800 ${colorClass}">${log.type}</span>
+                    <span class="text-slate-300">${escapeHtml(log.text)}</span>
+                `;
+                consoleEl.appendChild(div);
+            });
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+
+        function addSystemLog(type, text) {
+            const now = new Date();
+            const timeStr = now.toTimeString().split(' ')[0];
+            systemLogs.push({ time: timeStr, type: type, text: text });
+            if(systemLogs.length > 50) systemLogs.shift();
+            renderLogs();
+        }
+
+        function addRandomLog() {
+            const types = ['INFO', 'SUCCESS', 'WARN'];
+            const msgs = ['Subsystem heartbeat verified.', 'Telemetry packet verified via relay station.', 'Thermal coefficient adjusted on radiator panel.', 'Memory cache garbage collection completed.'];
+            addSystemLog(types[Math.floor(Math.random() * types.length)], msgs[Math.floor(Math.random() * msgs.length)]);
+        }
+
+        function clearLogs() {
+            systemLogs = [];
+            renderLogs();
+        }
+
+        function updateTelemetryTicker() {
+            document.getElementById('cpuLoad').textContent = (12 + Math.random() * 8).toFixed(1) + '%';
+            document.getElementById('memLoad').textContent = (40 + Math.random() * 5).toFixed(1) + '%';
+        }
+
+        function refreshTelemetry() {
+            addSystemLog('INFO', 'Telemetry streams manually synchronized.');
+        }
+
+        function triggerSystemReset() {
+            addSystemLog('WARN', 'System reboot sequence initiated by operator.');
+            alert('System reboot complete. All telemetry channels verified.');
+        }
+
+        function triggerAttachment() {
+            alert('Select telemetry log or packet to attach to prompt.');
+        }
+
+        function escapeHtml(text) {
+            const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+            return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+        }
+    </script>
+</body>
 </html>
